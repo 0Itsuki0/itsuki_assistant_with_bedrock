@@ -10,6 +10,9 @@ A CLI assistant (chat tool) powered by [AWS Bedrock Converse API](https://docs.a
 ## Install
 This tool can be installed using `cargo install itsuki_bedrock_assistant`.
 
+For further details, please refer to cargo [crate.io](itsuki_bedrock_assistant).
+
+
 ## Requirements
 - AWS Account with Bedrock enabled
     - Default region: `us-east-1`
