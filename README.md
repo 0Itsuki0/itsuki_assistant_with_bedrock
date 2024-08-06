@@ -32,12 +32,21 @@ This tool can be installed using `cargo install itsuki_bedrock_assistant`.
 - To chat: type in your message and press `enter` or `return`.
 - To exit the app: press `ESC` or `Ctrl+C`.
 
-
+### Image generation
 Example queries for image generation:
 - Generate a cute hello world image in the test folder.
 - Generate 2 mathematics image of size 1024 * 1024 in the current folder.
 
+Available configuration for the image to generate:
+- Number of images: max of 5. Default to 1.
+- Quality: standard or premium. Default to standard.
+- height: The height of the image in pixels. Default to 512 pixels.
+- width: The width of the image in pixels. Default to 512 pixels.
 
+For more details on the parameters, check out [Bedrock official document](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-image.html#model-parameters-titan-image-api).
+
+
+### Read File
 Example queries for questioning regarding files:
 - Summarize the content in ./test/test.pdf.
 
