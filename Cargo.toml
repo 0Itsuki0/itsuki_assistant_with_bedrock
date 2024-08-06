@@ -1,0 +1,24 @@
+[package]
+name = "itsuki_bedrock_assistant"
+version = "0.1.0"
+edition = "2021"
+authors = ["Itsuki <itsuki.enjoy@google.com>"]
+description = "An AI assistant powered by AWS Bedrock. "
+readme = "README.md"
+repository = "https://github.com/0Itsuki0/itsuki_assistant_with_bedrock"
+license-file = "LICENSE"
+keywords = ["cli", "chat", "aws", "bedrock"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+anyhow = "1.0.86"
+aws-config = { version = "1.5.4", features = ["behavior-version-latest"] }
+aws-sdk-bedrockruntime = "1.42.0"
+aws-smithy-types = "1.2.0"
+crossterm = "0.28.1"
+open = "5.3.0"
+serde = { version = "1.0.204", features = ["derive"] }
+serde_json = "1.0.121"
+tokio = { version = "1.39.2", features = ["full"] }
+image = "0.25.2"
+base64 = "0.22.1"
