@@ -10,7 +10,7 @@ A CLI assistant (chat tool) powered by [AWS Bedrock Converse API](https://docs.a
 ## Install
 This tool can be installed using `cargo install bedrock_assistant`.
 
-For further details, please refer to cargo [crate.io](bedrock_assistant).
+For further details, please refer to cargo [crate.io](https://crates.io/crates/bedrock_assistant).
 
 
 ## Requirements
