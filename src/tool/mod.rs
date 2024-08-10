@@ -96,11 +96,11 @@ impl ToDocument for ToolJsonSchema {
 impl ToDocument for Value {
     fn to_document(&self) -> Document {
         if let Some(string) = self.as_str() {
-            if string == "null" {
-                return Document::Null;
-            } else {
-                return Document::String(string.to_owned());
-            }
+            return Document::String(string.to_owned());
+        }
+
+        if let Some(_) = self.as_null() {
+            return Document::Null
         }
 
         if let Some(bool) = self.as_bool() {
