@@ -8,9 +8,9 @@ A CLI assistant (chat tool) powered by [AWS Bedrock Converse API](https://docs.a
 
 
 ## Install
-This tool can be installed using `cargo install itsuki_bedrock_assistant`.
+This tool can be installed using `cargo install bedrock_assistant`.
 
-For further details, please refer to cargo [crate.io](itsuki_bedrock_assistant).
+For further details, please refer to cargo [crate.io](bedrock_assistant).
 
 
 ## Requirements
@@ -31,7 +31,8 @@ For further details, please refer to cargo [crate.io](itsuki_bedrock_assistant).
 
 ## Usage
 - [Sign in through AWS Command Line Interface](https://docs.aws.amazon.com/signin/latest/userguide/command-line-sign-in.html)
-- To start the app: type `itsuki_bedrock_assistant` in the terminal.
+- To start the app: run `bedrock_assistant` in the terminal.
+    - This app stremas by default. To disable the streaming behavior, pass in `--non-stream` argument.
 - To chat: type in your message and press `enter` or `return`.
 - To exit the app: press `ESC` or `Ctrl+C`.
 

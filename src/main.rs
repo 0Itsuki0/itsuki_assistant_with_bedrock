@@ -7,6 +7,7 @@ use aws_config::meta::region::RegionProviderChain;
 use aws_config::Region;
 use aws_sdk_bedrockruntime::Client;
 use bedrock_service::BedrockService;
+use clap::{Arg, Command};
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::Clear;
 use crossterm::{terminal, ExecutableCommand};
@@ -55,9 +56,20 @@ https://github.com/0Itsuki0/itsuki_assistant_with_bedrock
 ";
 
 
-
 #[tokio::main]
 async fn main() -> Result<()> {
+    let flag_id = "non-stream";
+    let command = Command::new("mycmd")
+        .arg(
+            Arg::new(flag_id)
+                .long("non-stream")
+                .action(clap::ArgAction::SetTrue)
+        );
+    let matches = command.get_matches();
+    let should_stream = !matches.get_flag(&flag_id);
+
+
+
     let region_string = env::var(REGION_KEY).unwrap_or(CLAUDE_REGION.to_owned());
     let region = Region::new(region_string);
 
@@ -67,7 +79,6 @@ async fn main() -> Result<()> {
     let mut stdout: Stdout = stdout();
 
     let mut bedrock_service = BedrockService::new(&client)?;
-    // bedrock_service.run("summarize the content in ./test/test.pdf").await?;
 
     let mut terminal_service = TerminalService::new();
 
@@ -98,7 +109,6 @@ async fn main() -> Result<()> {
                     }
                     terminal_service.log_user_inline(&c)?;
                     user_input.push(c);
-                    // terminal_service.log_user_inline(&format!("\r{}", &user_input))?;
                 },
                 KeyCode::Enter => {
                     if user_input.is_empty() {
@@ -110,8 +120,11 @@ async fn main() -> Result<()> {
 
                     terminal_service.log_info_inline("\n\r..... Please wait!\r")?;
                     terminal::disable_raw_mode()?;
-                    bedrock_service.run(&user_input).await?;
-                    // println!("{user_input}");
+                    if should_stream {
+                        bedrock_service.run_stream(&user_input).await?;
+                    } else {
+                        bedrock_service.run(&user_input).await?;
+                    }
                     terminal::enable_raw_mode()?;
                     terminal_service.log_info("\rYou:\r")?;
                     user_input = String::from("");
@@ -119,25 +132,10 @@ async fn main() -> Result<()> {
                 KeyCode::Backspace | KeyCode::Delete => {
                     terminal_service.delete_char()?;
                     user_input.pop();
-
-                    // let position: usize = cursor::position()?.0.into();
-                    // terminal_service.delete_char()?;
-                    // if position < user_input.len() {
-                    //     user_input.remove(position);
-                    // } else {
-                    //     user_input.pop();
-                    // }
-                    // terminal_service.log_user_inline(&format!("\r{}", &user_input))?;
                 },
                 KeyCode::Esc => {
                     break 'chat;
                 },
-                // KeyCode::Left => {
-                //     stdout.execute(cursor::MoveLeft(1))?;
-                // },
-                // KeyCode::Right => {
-                //     stdout.execute(cursor::MoveRight(1))?;
-                // }
                 _ => {},
             }
         }
@@ -146,6 +144,7 @@ async fn main() -> Result<()> {
 
     terminal::disable_raw_mode()?;
     terminal_service.log_info(FINISH)?;
+
     Ok(())
 
 }

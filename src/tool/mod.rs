@@ -35,8 +35,6 @@ pub struct ToolJsonSchema {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Property {
-    // #[serde(skip_serializing)]
-    // name: String,
     pub r#type: PropertyType,
     pub description: String
 }
@@ -92,5 +90,44 @@ impl ToDocument for ToolJsonSchema {
             ("properties".to_owned(), Document::Object(properties)),
             ("required".to_owned(), Document::Array(required)),
         ]))
+    }
+}
+
+impl ToDocument for Value {
+    fn to_document(&self) -> Document {
+        let value_string = self.to_string();
+        if &value_string == "null" {
+            println!("null");
+            return Document::Null;
+        }
+
+        let bool_result = serde_json::from_str::<bool>(&value_string);
+        if bool_result.is_ok() {
+            return Document::Bool(bool_result.unwrap())
+        }
+        let number_result = serde_json::from_str::<f64>(&value_string);
+        if number_result.is_ok() {
+            return Document::Number(aws_smithy_types::Number::Float(number_result.unwrap()));
+        }
+
+        let array_result = serde_json::from_str::<Vec<Value>>(&value_string);
+        if array_result.is_ok() {
+            let mut doc_array: Vec<Document> = vec![];
+            for item in array_result.unwrap() {
+                doc_array.push(item.to_document())
+            }
+            return Document::Array(doc_array);
+        }
+
+        let object_result = serde_json::from_str::<HashMap<String, Value>>(&value_string);
+        if object_result.is_ok() {
+            let mut doc_map: HashMap<String, Document> = HashMap::new();
+            for (key, value) in object_result.unwrap().into_iter() {
+                doc_map.insert(key, value.to_document());
+            };
+            return Document::Object(doc_map);
+        }
+        return Document::String(value_string);
+
     }
 }

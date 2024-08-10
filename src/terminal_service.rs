@@ -36,6 +36,13 @@ impl TerminalService {
         Ok(())
     }
 
+    pub fn log_ai_inline(&mut self, text: &str) -> Result<()>{
+        self.stdout.execute(SetForegroundColor(Color::Blue))?;
+        write!(self.stdout, "{}", text)?;
+        self.stdout.flush()?;
+        Ok(())
+    }
+
     pub fn log_user(&mut self, text: &str) -> Result<()>{
         self.stdout.execute(SetForegroundColor(Color::Green))?;
         writeln!(self.stdout, "{}", text)?;

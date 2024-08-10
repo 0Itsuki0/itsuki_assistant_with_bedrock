@@ -2,12 +2,14 @@
 use core::str;
 use std::env;
 use anyhow::{bail, Context, Result};
+use aws_sdk_bedrockruntime::types::{ContentBlockDelta, ConverseStreamOutput, StopReason};
 use aws_smithy_types::{Blob, Document};
 use aws_sdk_bedrockruntime::Client;
-use aws_sdk_bedrockruntime::types::{ContentBlock, Message, SystemContentBlock, Tool, ToolConfiguration, ToolInputSchema, ToolSpecification, ConversationRole::User, ToolResultBlock, ToolResultStatus, ToolUseBlock};
+use aws_sdk_bedrockruntime::types::{ContentBlock, Message, SystemContentBlock, Tool, ToolConfiguration, ToolInputSchema, ToolSpecification, ConversationRole::{User, Assistant}, ToolResultBlock, ToolResultStatus, ToolUseBlock};
 use aws_sdk_bedrockruntime::operation::converse::ConverseOutput;
+use serde_json::Value;
 
-use crate::tool::create_tool_result_block;
+use crate::tool::{create_tool_result_block, ToDocument};
 use crate::tool::read_file::{read_file, read_file_schema, READ_FILE_DESCRIPTION, READ_FILE_NAME};
 use crate::tool::image_generator_parameter::{IamgeQuality, ImageGenerationConfig, ImageGeneratorParameter, ImageGeneratorResponse};
 use crate::tool::generate_image::{generate_image_schema, save_generated_image, DEFAULT_HEIGHT, DEFAULT_WIDTH, GENERATE_IMAGE_DESCRIPTION, GENERATE_IMAGE_NAME};
@@ -57,13 +59,7 @@ pub struct BedrockService {
 impl BedrockService {
     pub fn new(client: &Client) -> Result<Self> {
         let system_prmopt = SystemContentBlock::Text(get_system_prompt());
-        // let create_file_tool = Tool::ToolSpec(
-        //     ToolSpecification::builder()
-        //         .name(CREATE_FILE_NAME)
-        //         .description(CREATE_FILE_DESCRIPTION)
-        //         .input_schema(ToolInputSchema::Json(create_file_schema()?))
-        //         .build()?
-        // );
+
         let generate_image_tool = Tool::ToolSpec(
             ToolSpecification::builder()
                 .name(GENERATE_IMAGE_NAME)
@@ -99,14 +95,11 @@ impl BedrockService {
         )
     }
 
+    // non streaming
     pub async fn run(&mut self, input: &str) -> Result<()> {
-        let message = Message::builder()
-            .role(User)
-            .content(ContentBlock::Text(input.to_owned()))
-            .build()?;
 
+        self.append_user_message(input)?;
 
-        self.conversation.push(message);
         let response = match self.send().await {
             Ok(response) => response,
             Err(err) => {
@@ -173,45 +166,165 @@ impl BedrockService {
             }
         }
 
-        if !tool_results.is_empty() {
-            let tool_results_messgae = Message::builder()
-                .role(User)
-                .set_content(Some(tool_results))
-                .build()?;
-            self.conversation.push(tool_results_messgae);
-
-            let tool_response = self.send().await?;
-            let tool_response_output = tool_response.output().context("Error getting output")?;
-            // println!("tool_response_output: {:?}", tool_response_output);
-            let tool_response_message = match tool_response_output.as_message() {
-                Ok(message) => message,
-                Err(_) => {
-                    bail!("Output is not a message")
-                },
-            };
-            self.conversation.push(tool_response_message.clone());
-            let tool_response_contents = tool_response_message.content();
-
-            for tool_response_content in tool_response_contents {
-                match tool_response_content {
-                    ContentBlock::Text(text_content) => {
-                        self.terminal.log_ai(text_content)?;
-
-                        // println!("\x1b[0;90mThe model's response:\x1b[0m\n{text_content}");
-                    },
-                    _ => {
-                        break
-                    },
-                }
-            }
-        }
-
+        self.send_tool_result(tool_results).await?;
 
         Ok(())
     }
 
 
-    pub async fn use_tool(&mut self, tool_use: &ToolUseBlock) -> Result<ToolResultBlock> {
+    pub async fn run_stream(&mut self, input: &str) -> Result<()> {
+
+        self.append_user_message(input)?;
+
+        let response = match self.send_stream().await {
+            Ok(response) => response,
+            Err(err) => {
+                self.terminal.clear_line()?;
+                self.terminal.log_error(&err.root_cause().to_string())?;
+                return Ok(());
+            },
+        };
+        self.terminal.clear_line()?;
+        self.process_output_stream(response).await?;
+
+        Ok(())
+    }
+
+    async fn send_stream(&mut self) -> Result<aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamOutput> {
+
+        let builder = self.bedrock_client
+            .converse_stream()
+            .model_id(&self.chat_model_id)
+            .system(self.system_prmopt.clone())
+            .set_messages(Some(self.conversation.clone()))
+            .tool_config(self.tool_config.clone());
+
+
+        let response = builder
+            .send()
+            .await?;
+        // println!("response.stop_reason: {:?}", response.stop_reason);
+        Ok(response)
+    }
+
+    async fn process_output_stream(&mut self, output: aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamOutput) -> Result<()> {
+        let mut stream = output.stream;
+        let mut tool_input = "".to_owned();
+        let mut tool_id = "".to_owned();
+        let mut tool_name = "".to_owned();
+        let mut assistant_message = "".to_owned();
+
+        let mut tool_results: Vec<ContentBlock> = vec![];
+
+        loop {
+            let token = stream.recv().await?;
+            match token {
+                Some(output) => {
+                    // self.process_stream_token(output)?
+                    // println!("token: {:?}", output);
+                    match output {
+                        ConverseStreamOutput::ContentBlockDelta(event) => {
+                            let delta = event.delta.context("delta in event not found")?;
+                            match delta {
+                                ContentBlockDelta::Text(text) => {
+                                    self.terminal.log_ai_inline(&text)?;
+                                    assistant_message = format!("{}{}", assistant_message, text)
+                                },
+                                ContentBlockDelta::ToolUse(tool) => {
+                                    self.terminal.log_info_inline(&tool.input())?;
+                                    tool_input = format!("{}{}", tool_input, tool.input())
+                                },
+                                _ => {
+                                    continue;
+                                },
+                            }
+
+                        },
+                        ConverseStreamOutput::ContentBlockStart(event) => {
+                            match event.start {
+                                Some(start) => {
+                                    match start {
+                                        aws_sdk_bedrockruntime::types::ContentBlockStart::ToolUse(tool_use) => {
+                                            tool_id = tool_use.tool_use_id;
+                                            tool_name = tool_use.name;
+                                            self.terminal.log_info(&format!("\n\rTool used: {tool_name}"))?;
+                                            self.terminal.log_info_inline("\rTool Input: ")?;
+                                        },
+                                        _ => {
+                                            continue;
+                                        },
+                                    }
+                                },
+                                None => {
+                                    continue;
+                                },
+                            }
+                        },
+                        ConverseStreamOutput::MessageStart(_) => {
+                            self.terminal.log_info("AI:\r")?;
+                        }
+                        ConverseStreamOutput::MessageStop(event) => {
+                            self.terminal.log_info("\r")?;
+                            if event.stop_reason == StopReason::ToolUse {
+
+                                let tool_input = match serde_json::from_str::<Value>(&tool_input)  {
+                                    Ok(value) => value.to_document(),
+                                    Err(_) => Document::String(tool_input.clone()),
+                                };
+
+                                let tool_use_block = ToolUseBlock::builder()
+                                    .name(tool_name.clone())
+                                    .input(tool_input)
+                                    .tool_use_id(tool_id.clone())
+                                    .build()?;
+                                let message = Message::builder()
+                                    .role(Assistant)
+                                    .content(ContentBlock::ToolUse(tool_use_block.clone()))
+                                    .build()?;
+                                self.conversation.push(message.clone());
+
+                                let result = self.use_tool(&tool_use_block).await?;
+                                tool_results.push(ContentBlock::ToolResult(result))
+
+                            } else {
+                                let message = Message::builder()
+                                    .role(Assistant)
+                                    .content(ContentBlock::Text(assistant_message.clone()))
+                                    .build()?;
+                                self.conversation.push(message.clone());
+                            }
+
+                            tool_id = "".to_string();
+                            tool_input = "".to_string();
+                            tool_name = "".to_string();
+                            assistant_message = "".to_string();
+                        }
+                        _ => {
+                            continue;
+                        },
+                    };
+                },
+                None => break,
+            }
+        }
+
+        self.send_tool_result(tool_results).await?;
+
+        Ok(())
+    }
+
+    fn append_user_message(&mut self, input: &str) -> Result<()> {
+        let message = Message::builder()
+            .role(User)
+            .content(ContentBlock::Text(input.to_owned()))
+            .build()?;
+
+        self.conversation.push(message);
+        Ok(())
+    }
+
+
+    async fn use_tool(&mut self, tool_use: &ToolUseBlock) -> Result<ToolResultBlock> {
 
         let id = tool_use.tool_use_id();
         let name = tool_use.name();
@@ -237,6 +350,41 @@ impl BedrockService {
         }
     }
 
+    async fn send_tool_result(&mut self, tool_results: Vec<ContentBlock>) -> Result<()> {
+        if !tool_results.is_empty() {
+            let tool_results_messgae = Message::builder()
+                .role(User)
+                .set_content(Some(tool_results))
+                .build()?;
+            self.conversation.push(tool_results_messgae);
+
+            let tool_response = self.send().await?;
+            let tool_response_output = tool_response.output().context("Error getting output")?;
+            // println!("tool_response_output: {:?}", tool_response_output);
+            let tool_response_message = match tool_response_output.as_message() {
+                Ok(message) => message,
+                Err(_) => {
+                    bail!("Output is not a message")
+                },
+            };
+            self.conversation.push(tool_response_message.clone());
+            let tool_response_contents = tool_response_message.content();
+
+            for tool_response_content in tool_response_contents {
+                match tool_response_content {
+                    ContentBlock::Text(text_content) => {
+                        self.terminal.log_ai(text_content)?;
+                        // println!("\x1b[0;90mThe model's response:\x1b[0m\n{text_content}");
+                    },
+                    _ => {
+                        break
+                    },
+                }
+            }
+        }
+
+        Ok(())
+    }
 
 
     // return an array of base64 image string
@@ -249,12 +397,6 @@ impl BedrockService {
         let _ = input_object.get("path")
             .context("path is not provided.")?
             .as_string().context("path is not string")?;
-
-        // let mut path = PathBuf::from(path);
-        // if path.extension().is_some() {
-        //     path = path.parent().unwrap().to_path_buf();
-        //     // bail!("Path to save the image is not a directory.")
-        // }
 
         let number_of_images = match input_object.get("numberOfImages").unwrap_or(&Document::Null).as_number() {
             Some(count) => count.to_f32_lossy() as u8,
@@ -305,6 +447,5 @@ impl BedrockService {
         // println!("Image count: {}", base64_image_array.clone().len());
         Ok(base64_image_array)
     }
-
 
 }
