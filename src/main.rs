@@ -68,8 +68,6 @@ async fn main() -> Result<()> {
     let matches = command.get_matches();
     let should_stream = !matches.get_flag(&flag_id);
 
-
-
     let region_string = env::var(REGION_KEY).unwrap_or(CLAUDE_REGION.to_owned());
     let region = Region::new(region_string);
 

@@ -95,39 +95,38 @@ impl ToDocument for ToolJsonSchema {
 
 impl ToDocument for Value {
     fn to_document(&self) -> Document {
-        let value_string = self.to_string();
-        if &value_string == "null" {
-            println!("null");
-            return Document::Null;
+        if let Some(string) = self.as_str() {
+            if string == "null" {
+                return Document::Null;
+            } else {
+                return Document::String(string.to_owned());
+            }
         }
 
-        let bool_result = serde_json::from_str::<bool>(&value_string);
-        if bool_result.is_ok() {
-            return Document::Bool(bool_result.unwrap())
-        }
-        let number_result = serde_json::from_str::<f64>(&value_string);
-        if number_result.is_ok() {
-            return Document::Number(aws_smithy_types::Number::Float(number_result.unwrap()));
+        if let Some(bool) = self.as_bool() {
+            return Document::Bool(bool)
         }
 
-        let array_result = serde_json::from_str::<Vec<Value>>(&value_string);
-        if array_result.is_ok() {
+        if let Some(f64) = self.as_f64() {
+            return Document::Number(aws_smithy_types::Number::Float(f64));
+        }
+
+        if let Some(array) = self.as_array() {
             let mut doc_array: Vec<Document> = vec![];
-            for item in array_result.unwrap() {
+            for item in array {
                 doc_array.push(item.to_document())
             }
             return Document::Array(doc_array);
         }
 
-        let object_result = serde_json::from_str::<HashMap<String, Value>>(&value_string);
-        if object_result.is_ok() {
+        if let Some(object) = self.as_object() {
             let mut doc_map: HashMap<String, Document> = HashMap::new();
-            for (key, value) in object_result.unwrap().into_iter() {
-                doc_map.insert(key, value.to_document());
+            for (key, value) in object.into_iter() {
+                doc_map.insert(key.to_owned(), value.to_document());
             };
             return Document::Object(doc_map);
         }
-        return Document::String(value_string);
 
+        return Document::Null;
     }
 }
