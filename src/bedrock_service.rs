@@ -295,6 +295,15 @@ impl BedrockService {
                         }
                         ConverseStreamOutput::MessageStop(event) => {
                             self.terminal.log_info("\r")?;
+
+                            if !assistant_message.is_empty() {
+                                let message = Message::builder()
+                                    .role(Assistant)
+                                    .content(ContentBlock::Text(assistant_message.clone()))
+                                    .build()?;
+                                self.conversation.push(message.clone());
+                            }
+
                             if event.stop_reason == StopReason::ToolUse {
 
                                 let tool_input = match serde_json::from_str::<Value>(&tool_input)  {
@@ -316,12 +325,6 @@ impl BedrockService {
                                 let result = self.use_tool(&tool_use_block).await?;
                                 tool_results.push(ContentBlock::ToolResult(result))
 
-                            } else {
-                                let message = Message::builder()
-                                    .role(Assistant)
-                                    .content(ContentBlock::Text(assistant_message.clone()))
-                                    .build()?;
-                                self.conversation.push(message.clone());
                             }
 
                             tool_id = "".to_string();
