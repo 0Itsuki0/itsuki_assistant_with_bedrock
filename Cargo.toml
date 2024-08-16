@@ -1,6 +1,6 @@
 [package]
 name = "bedrock_assistant"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["Itsuki <itsuki.enjoy@google.com>"]
 description = "An AI assistant powered by AWS Bedrock. "

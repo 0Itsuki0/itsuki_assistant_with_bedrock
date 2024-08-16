@@ -26,11 +26,15 @@ Welcome to the Itsuki Assistant!
 This assistant is powered by AWS Bedrock Claude with the capabilities to
 - chat
 - generate images
+- code interpreter
 - answer questions on files
 
 Example queries for image generation:
 - Generate a cute hello world image in the test folder.
 - Generate 2 mathematics image of size 1024 * 1024 in the current folder.
+
+Example queries for data analysis, data exploration, math, and etc:
+- Draw a graph of y=x.
 
 Example queries for questioning regarding files:
 - Summarize the content in ./test/test.pdf.

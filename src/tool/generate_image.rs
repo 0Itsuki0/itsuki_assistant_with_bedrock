@@ -27,7 +27,7 @@ pub fn generate_image_schema() -> Result<Document> {
             },
             "path": {
                 "type": "string",
-                "description": "The path of the folder where the generated image should be saved. Required."
+                "description": "The path of the folder where the generated image should be saved. Required.Default to the current working directory."
             },
             "numberOfImages": {
                 "type": "number",
