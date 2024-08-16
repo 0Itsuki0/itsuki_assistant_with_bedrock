@@ -4,7 +4,7 @@ use std::path::Path;
 use std::fs::{self};
 
 use anyhow::Result;
-use aws_sdk_bedrockruntime::types::{ToolResultBlock, ToolResultContentBlock, ToolResultStatus};
+use aws_sdk_bedrockruntime::types::{ToolResultBlock, ToolResultStatus};
 use aws_smithy_types::Document;
 use serde_json::json;
 use base64::prelude::*;
@@ -85,11 +85,18 @@ pub fn save_generated_image(id: &str, input: &Document, images: Vec<String>) -> 
         }
     }
 
-    match fs::create_dir_all(path) {
+    if !path.to_str().unwrap_or("").is_empty() {
+        match fs::create_dir_all(path) {
+            Ok(_) => {},
+            Err(err) => {
+                return create_tool_result_block(id, &err.to_string(), ToolResultStatus::Error)
+            }
+        };
+    }
+
+    match open::that_detached(path) {
         Ok(_) => {},
-        Err(err) => {
-            return create_tool_result_block(id, &err.to_string(), ToolResultStatus::Error)
-        }
+        Err(_) => {},
     };
 
     for (index, image_string) in images.into_iter().enumerate() {
@@ -116,11 +123,5 @@ pub fn save_generated_image(id: &str, input: &Document, images: Vec<String>) -> 
             Err(_) => {},
         };
     }
-
-    let tool_result = ToolResultBlock::builder()
-        .tool_use_id(id.to_owned())
-        .content(ToolResultContentBlock::Text("Image generated and saved.".to_owned()))
-        .status(ToolResultStatus::Success)
-        .build()?;
-    Ok(tool_result)
+    return create_tool_result_block(id, "Image generated and saved.", ToolResultStatus::Success)
 }

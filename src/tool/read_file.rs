@@ -49,7 +49,6 @@ pub fn read_file(id: &str, input: &Document) -> Result<ToolResultBlock> {
     };
 
     let path = PathBuf::from(path);
-    // let path = Path::new("/Users/itsuki/Desktop/pikachu.jpg");
     let bytes = match fs::read(&path) {
         Ok(bytes) => bytes,
         Err(err) => {
@@ -83,14 +82,8 @@ pub fn read_file(id: &str, input: &Document) -> Result<ToolResultBlock> {
             return create_tool_result_block(id, &err.to_string(), ToolResultStatus::Error)
         },
     };
-
-    let tool_result = ToolResultBlock::builder()
-        .tool_use_id(id.to_owned())
-        .content(ToolResultContentBlock::Text("File read.".to_owned()))
-        .content(ToolResultContentBlock::Text(string.to_owned()))
-        .status(ToolResultStatus::Success)
-        .build()?;
-    Ok(tool_result)
+    let content = format!("File read with Content: {}", string);
+    return create_tool_result_block(id, &content, ToolResultStatus::Success)
 }
 
 

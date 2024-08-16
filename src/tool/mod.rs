@@ -2,6 +2,7 @@
 pub mod read_file;
 pub mod generate_image;
 pub mod image_generator_parameter;
+pub mod run_python;
 
 use std::{collections::HashMap, fmt};
 use aws_sdk_bedrockruntime::types::{ToolResultBlock, ToolResultContentBlock, ToolResultStatus};

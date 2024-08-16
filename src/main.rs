@@ -77,6 +77,8 @@ async fn main() -> Result<()> {
     let mut stdout: Stdout = stdout();
 
     let mut bedrock_service = BedrockService::new(&client)?;
+    // bedrock_service.run("Draw a graph of y=x.").await?;
+    // bedrock_service.run("a hello world image in the current folder").await?;
 
     let mut terminal_service = TerminalService::new();
 
